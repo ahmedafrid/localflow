@@ -34,41 +34,44 @@ the same hold-to-talk workflow with no subscription, no account and no cloud aud
 
 ## Install
 
-All platforms need [uv](https://docs.astral.sh/uv/getting-started/installation/). It installs Python and every dependency for you.
+One command. It downloads only the app (about 100 KB), installs [uv](https://docs.astral.sh/uv/) if needed,
+sets LocalFlow to start at login, and opens the welcome screen.
 The first dictation downloads the speech model once (about 0.5 to 1.6 GB).
 
-### macOS (Apple Silicon)
+**macOS (Apple Silicon)**, in Terminal:
 
 ```sh
-xcode-select --install          # once, if you don't have the command line tools
-git clone https://github.com/ahmedafrid/localflow && cd localflow
-./build.sh
+curl -fsSL https://raw.githubusercontent.com/ahmedafrid/localflow/main/install.sh | bash
 ```
 
-This installs `/Applications/LocalFlow.app`, adds it to Login Items and opens the welcome screen.
-Allow **Microphone**, **Accessibility** and **Input Monitoring**, then click *Restart LocalFlow*.
+Then allow **Microphone**, **Accessibility** and **Input Monitoring**, and click *Restart LocalFlow*.
+If macOS asks for its command line tools, click Install and run the command again.
 
-### Windows
+**Windows**, in PowerShell:
 
 ```powershell
-git clone https://github.com/ahmedafrid/localflow; cd localflow
-uv run flow.py
+irm https://raw.githubusercontent.com/ahmedafrid/localflow/main/install.ps1 | iex
 ```
 
-The welcome page opens in your browser. To start LocalFlow at login: press `Win+R`, type `shell:startup`,
-and create a shortcut there to `uv run "C:\path\to\localflow\flow.py"`.
-
-### Linux
+**Linux**, in a terminal:
 
 ```sh
-sudo apt install xclip           # clipboard (Fedora: dnf install xclip; Wayland: wl-clipboard)
-git clone https://github.com/ahmedafrid/localflow && cd localflow
-uv run flow.py
+curl -fsSL https://raw.githubusercontent.com/ahmedafrid/localflow/main/install.sh | bash
 ```
 
-Hotkeys and pasting need an **X11** session (most distros offer "Xorg" at the login screen); Wayland blocks
-global hotkeys. If your user can't read keyboard input, add it to the `input` group and log in again.
-To start at login, add `uv run /path/to/localflow/flow.py` to your desktop's Startup Applications.
+Linux needs a clipboard tool (`sudo apt install xclip`) and an **X11** session (most distros offer "Xorg" at the
+login screen), because Wayland blocks global hotkeys. If your user can't read keyboard input, add it to the
+`input` group and log in again.
+
+Updates install from inside the app, so you only run this once.
+
+### From source
+
+```sh
+git clone https://github.com/ahmedafrid/localflow && cd localflow
+./build.sh        # macOS
+uv run flow.py    # Windows / Linux
+```
 
 ### Settings
 
