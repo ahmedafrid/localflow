@@ -1,0 +1,18 @@
+# secrets / local config — your key lives in ~/Library/Application Support/LocalFlow/.env, never here
+.env
+.env.*
+!.env.example
+
+# build output and caches
+build/
+__pycache__/
+*.pyc
+.DS_Store
+
+# local editor/tool state
+.impeccable/
+.vscode/
+.idea/
+
+# unused design file, kept locally
+icon.png
