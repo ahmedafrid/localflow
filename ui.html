@@ -1,0 +1,471 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LocalFlow</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Onest:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#ECEEF7; --surface:#FFFFFF; --ink:#181C3A; --muted:#5D6388; --line:#D8DBEB;
+  --accent:#3346D3; --accent-2:#8A63F2; --accent-soft:#E3E6FB; --rec:#E5484D; --ok:#167A53; --learn:#8F5E12; --on-accent:#FFFFFF;
+  --radius-lg:22px; --radius:12px;
+  --display:"Bricolage Grotesque", ui-sans-serif, system-ui, sans-serif;
+  --body:"Onest", ui-sans-serif, system-ui, -apple-system, sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#10122A; --surface:#191C3A; --ink:#E9EBFA; --muted:#9CA1C6; --line:#2B2F57;
+         --accent:#8C98FF; --accent-2:#B29BFF; --accent-soft:#252A5C; --ok:#4CC99A; --learn:#E3B35A; --on-accent:#10122A; }
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 var(--body);-webkit-font-smoothing:antialiased}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
+.wrap{max-width:1120px;margin:0 auto;padding:28px 20px 40px}
+
+/* header: the one loud thing — wordmark + live mic state */
+header{display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-bottom:28px}
+.brand{display:flex;align-items:center;gap:14px}
+.mark{width:52px;height:52px;border-radius:15px;background:linear-gradient(150deg,var(--accent),var(--accent-2));display:grid;place-items:center}
+.mark svg{width:30px;height:30px}
+h1{font:700 40px/1 var(--display);letter-spacing:-.02em;margin:0}
+.state{display:flex;align-items:center;gap:12px;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:10px 18px 10px 12px}
+.orb{width:30px;height:30px;border-radius:50%;background:var(--accent-soft);display:grid;place-items:center;flex:none}
+.orb i{width:12px;height:12px;border-radius:50%;background:var(--accent)}
+.state[data-s=recording] .orb,.state[data-s=locked] .orb{background:color-mix(in srgb,var(--rec) 18%,transparent)}
+.state[data-s=recording] .orb i,.state[data-s=locked] .orb i{background:var(--rec);animation:pulse 1s ease-in-out infinite}
+.state[data-s=working] .orb i{animation:pulse .6s ease-in-out infinite}
+.state[data-s=setup] .orb i{background:var(--learn)}
+@keyframes pulse{50%{transform:scale(1.5);opacity:.55}}
+@media (prefers-reduced-motion:reduce){.orb i{animation:none!important}}
+.state b{display:block;font-weight:600;line-height:1.2}
+.state span{font-size:13px;color:var(--muted)}
+.stopbtns{display:none;gap:6px;margin-left:6px}
+.state[data-s=recording] .stopbtns,.state[data-s=locked] .stopbtns{display:flex}
+.stopbtns button{border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:999px;padding:6px 12px;font-size:13px;cursor:pointer}
+.stopbtns button.rec{background:var(--rec);border-color:var(--rec);color:#fff;font-weight:600}
+
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+.wrap{max-width:880px}
+.top-right{display:flex;align-items:center;gap:10px}
+.gear{width:46px;height:46px;border-radius:50%;border:1px solid var(--line);background:var(--surface);color:var(--muted);display:grid;place-items:center;cursor:pointer;transition:color .15s,border-color .15s}
+.gear:hover{color:var(--ink);border-color:var(--accent)}
+.gear svg{width:20px;height:20px}
+
+/* settings drawer */
+.scrim{position:fixed;inset:0;background:rgb(5 6 20 / .45);opacity:0;pointer-events:none;transition:opacity .2s;z-index:10}
+.drawer{position:fixed;top:0;right:0;bottom:0;width:min(440px,100vw);background:var(--bg);border-left:1px solid var(--line);
+  transform:translateX(100%);transition:transform .25s cubic-bezier(.2,.8,.2,1);z-index:11;display:flex;flex-direction:column;visibility:hidden}
+body.open .scrim{opacity:1;pointer-events:auto}
+body.open .drawer{transform:none;visibility:visible}
+body.open{overflow:hidden}
+@media (prefers-reduced-motion:reduce){.drawer,.scrim{transition:none}}
+.drawer-head{display:flex;align-items:center;justify-content:space-between;padding:20px 22px 14px}
+.drawer-head h2{font-size:24px;margin:0}
+.x{width:36px;height:36px;border-radius:50%;border:0;background:var(--surface);color:var(--muted);cursor:pointer;font-size:20px;line-height:1}
+.x:hover{color:var(--ink)}
+.drawer-body{overflow-y:auto;overscroll-behavior:contain;padding:0 22px 28px;display:grid;gap:12px;align-content:start;-webkit-overflow-scrolling:touch}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:16px}
+.panel summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:12px;padding:16px 18px;border-radius:16px}
+.panel summary::-webkit-details-marker{display:none}
+.panel summary b{font:700 17px/1.2 var(--display);display:block}
+.panel summary small{color:var(--muted);font-size:13px}
+.panel summary::after{content:"";margin-left:auto;width:9px;height:9px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(45deg) translateY(-3px);transition:transform .2s;flex:none}
+.panel[open] summary::after{transform:rotate(225deg) translate(-2px,-1px)}
+.panel-body{padding:2px 18px 18px}
+section{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);padding:22px}
+.side{display:grid;gap:24px}
+h2{font:700 21px/1.2 var(--display);margin:0 0 4px}
+.hint{color:var(--muted);font-size:14px;margin:0 0 16px}
+
+/* setup */
+#setup{margin-bottom:24px;border-color:color-mix(in srgb,var(--learn) 45%,var(--line))}
+#setup ol{list-style:none;margin:0;padding:0;display:grid;gap:10px;counter-reset:step}
+#setup li{counter-increment:step;display:flex;align-items:center;gap:14px;padding:12px 14px;border-radius:var(--radius);background:var(--bg)}
+#setup li::before{content:counter(step);font:700 15px var(--display);width:28px;height:28px;border-radius:50%;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent);flex:none}
+#setup li.done::before{content:"✓";background:color-mix(in srgb,var(--ok) 20%,transparent);color:var(--ok)}
+#setup li div{flex:1}
+#setup li small{display:block;color:var(--muted);font-size:13px}
+#setup li .acts{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.linkbtn{border:0;background:none;color:var(--muted);font-size:13px;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+.setup-foot{display:flex;gap:12px;align-items:center;margin-top:14px;flex-wrap:wrap;color:var(--muted);font-size:14px}
+
+.btn{border:0;border-radius:10px;padding:9px 16px;background:var(--accent);color:var(--on-accent);font-weight:600;cursor:pointer}
+.btn.quiet{background:var(--accent-soft);color:var(--accent)}
+.btn:disabled{opacity:.5;cursor:default}
+
+/* history */
+.hist-head{display:flex;justify-content:space-between;align-items:end;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+input[type=search],input[type=text],input[type=password],select{width:100%;border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:9px 12px}
+.hist-head input{max-width:260px}
+.entries{display:grid;gap:4px}
+.entry{display:grid;grid-template-columns:64px minmax(0,1fr) auto;gap:14px;padding:14px 10px;border-radius:var(--radius)}
+.entry:hover{background:var(--bg)}
+.entry time{font-size:13px;color:var(--muted);padding-top:2px;font-variant-numeric:tabular-nums}
+.entry p{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}
+.entry p.clamp{display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden;
+  -webkit-mask-image:linear-gradient(#000 70%,transparent);mask-image:linear-gradient(#000 70%,transparent)}
+.more{border:0;background:none;color:var(--accent);font-size:13px;font-weight:600;cursor:pointer;padding:4px 0 0}
+.entry details{margin-top:6px;font-size:13px;color:var(--muted)}
+.entry summary{cursor:pointer;width:max-content}
+.copy{align-self:start;border:0;background:none;color:var(--accent);font-weight:600;font-size:14px;cursor:pointer;padding:2px 6px}
+.day{font:600 13px var(--body);color:var(--muted);margin:16px 10px 2px}
+.empty{color:var(--muted);padding:24px 10px}
+
+/* names */
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.chip{display:inline-flex;align-items:center;gap:6px;background:var(--accent-soft);color:var(--ink);border-radius:999px;padding:5px 6px 5px 12px;font-weight:500}
+.chip button{border:0;background:none;color:var(--muted);cursor:pointer;width:22px;height:22px;border-radius:50%;line-height:1}
+.chip button:hover{background:var(--surface)}
+.row{display:flex;gap:8px}
+.fixes{display:grid;gap:6px;margin:0 0 12px;padding:0;list-style:none}
+.fixes li{display:flex;align-items:center;gap:8px;font-size:14px}
+.fixes s{color:var(--muted)}
+.fixes b{font-weight:600}
+.fixes button{margin-left:auto;border:0;background:none;color:var(--muted);cursor:pointer}
+.new{color:var(--learn);font-size:13px;font-weight:600;margin:0 0 10px}
+label{display:block;font-size:14px;font-weight:500;margin:0 0 6px}
+.field{margin-bottom:14px}
+select{appearance:none;-webkit-appearance:none;cursor:pointer;padding-right:34px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='none' stroke='%23999' stroke-width='1.8' stroke-linecap='round'%3E%3Cpath d='M1 1.5l5 5 5-5'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center}
+.picks{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 16px}
+.picks button{border:1px solid var(--line);background:var(--bg);border-radius:999px;padding:4px 10px;font-size:13px;cursor:pointer}
+.picks button[aria-pressed=true]{border-color:var(--accent);color:var(--accent);font-weight:600}
+.saved{color:var(--ok);font-size:14px;margin-left:10px}
+.keystate{margin:8px 0 0;font-size:14px;font-weight:500;display:flex;gap:8px;align-items:baseline}
+.keystate::before{content:"";width:8px;height:8px;border-radius:50%;background:currentColor;flex:none;transform:translateY(-1px)}
+.keystate[data-s=ok]{color:var(--ok)} .keystate[data-s=invalid]{color:var(--rec)}
+.keystate[data-s=missing],.keystate[data-s=offline]{color:var(--muted)}
+.keystate a{color:inherit}
+.usage{margin:0 0 18px;display:grid;gap:8px}
+.usage div{display:flex;justify-content:space-between;gap:12px;font-size:15px}
+.usage dt{color:var(--muted)}
+.usage dd{margin:0;font-weight:600;font-variant-numeric:tabular-nums;text-align:right}
+.seg{display:flex;border:1px solid var(--line);border-radius:10px;padding:3px;gap:3px;margin-bottom:16px;background:var(--bg)}
+.seg button{flex:1;border:0;background:none;border-radius:7px;padding:7px 4px;font-size:14px;cursor:pointer;color:var(--muted)}
+.seg button[aria-checked=true]{background:var(--surface);color:var(--ink);font-weight:600;box-shadow:0 0 0 1px var(--line)}
+.btn.danger{background:none;color:var(--rec);border:1px solid color-mix(in srgb,var(--rec) 45%,var(--line));width:100%}
+.btn.danger.armed{background:var(--rec);color:#fff}
+
+/* updates */
+.upd-banner{display:flex;align-items:center;gap:12px;justify-content:space-between;flex-wrap:wrap;margin:0 0 20px;padding:12px 16px;
+  border-radius:14px;background:var(--accent-soft);color:var(--ink);font-size:14px}
+.upd-gate{position:fixed;inset:0;z-index:50;background:var(--bg);display:grid;place-items:center;padding:24px}
+.upd-card{max-width:440px;text-align:center}
+.upd-card h2{font-size:28px;margin:18px 0 8px}
+.upd-card p{color:var(--muted);margin:0 0 20px}
+.upd-card .mark{margin:0 auto}
+.upd-err{color:var(--rec)!important;font-size:14px;margin-top:12px!important}
+.about{padding:18px}
+.about p{margin:0 0 12px;color:var(--muted);font-size:14px}
+.about p b{color:var(--ink);font-weight:600}
+.about-links{display:grid;gap:6px}
+.about-links button{display:flex;align-items:center;justify-content:space-between;width:100%;border:1px solid var(--line);background:var(--bg);
+  border-radius:10px;padding:10px 12px;font-size:14px;cursor:pointer;text-align:left}
+.about-links button:hover{border-color:var(--accent)}
+.about-links small{color:var(--muted);font-size:13px}
+.credit{margin:12px 0 0!important;font-size:13px!important;text-align:center}
+.credit button{border:0;background:none;padding:0;color:var(--ink);font-weight:600;cursor:pointer}
+.credit button:hover{text-decoration:underline}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <div class="mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"><path d="M4 10v4M8 6v12M12 3v18M16 7v10M20 10v4"/></svg></div>
+      <h1>LocalFlow</h1>
+    </div>
+    <div class="top-right">
+    <div class="state" id="state" data-s="ready" role="status" aria-live="polite">
+      <div class="orb"><i></i></div>
+      <div><b id="stateTitle">Ready</b><span id="stateHint">Hold Fn to talk, tap Fn to lock</span></div>
+      <div class="stopbtns"><button type="button" data-stop="1">Cancel</button><button type="button" class="rec" data-stop="0">Stop</button></div>
+    </div>
+    <button class="gear" id="openSettings" aria-label="Settings" title="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg></button>
+    </div>
+  </header>
+
+  <div class="upd-banner" id="updBanner" hidden><span id="updText"></span><button class="btn" data-update>Update now</button></div>
+
+  <section id="setup" hidden>
+    <h2>Welcome to LocalFlow</h2>
+    <p class="hint">Hold <b id="welcomeKey">Fn</b> anywhere you can type, talk, and let go. Your words appear where your cursor is. A couple of quick steps first.</p>
+    <ol id="perms"></ol>
+    <div class="setup-foot" id="restartRow"><button class="btn" id="restart">Restart LocalFlow</button><span>Restart after switching on keyboard access so the Fn key starts working.</span></div>
+  </section>
+
+  <section aria-labelledby="hist">
+    <div class="hist-head">
+      <div><h2 id="hist">What you said</h2><p class="hint" style="margin:0">Saved only on this Mac.</p></div>
+      <input type="search" id="q" placeholder="Search your dictations" aria-label="Search your dictations">
+    </div>
+    <div class="entries" id="entries"></div>
+  </section>
+
+</div>
+
+<div class="upd-gate" id="updGate" hidden role="alertdialog" aria-labelledby="updH">
+  <div class="upd-card">
+    <div class="mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" width="30" height="30"><path d="M4 10v4M8 6v12M12 3v18M16 7v10M20 10v4"/></svg></div>
+    <h2 id="updH">Time to update</h2>
+    <p id="updGateText">A new version of LocalFlow is required to keep dictating.</p>
+    <button class="btn" data-update>Update now</button>
+    <p class="upd-err" id="updErr" hidden></p>
+  </div>
+</div>
+
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer" aria-labelledby="setH" role="dialog" aria-modal="true">
+  <div class="drawer-head"><h2 id="setH">Settings</h2><button class="x" id="closeSettings" aria-label="Close settings">×</button></div>
+  <div class="drawer-body">
+    <details class="panel" open>
+      <summary><div><b>Writing style</b><small id="modeSum">How I shape what you say</small></div></summary>
+      <div class="panel-body">
+        <div class="seg" role="radiogroup" aria-label="Writing style">
+          <button type="button" role="radio" data-mode="dev">Developer</button>
+          <button type="button" role="radio" data-mode="everyday">Everyday</button>
+        </div>
+        <p class="hint" style="font-size:13px;margin:0">Developer: code names in backticks, requests turned into clear prompts and lists. Everyday: natural messages and emails, no formatting.</p>
+      </div>
+    </details>
+
+    <details class="panel">
+      <summary><div><b>Names I know</b><small id="namesSum">Spelled exactly, every time</small></div></summary>
+      <div class="panel-body">
+        <p class="hint">When you fix a name I got wrong, I add it here myself.</p>
+        <p class="new" id="learned" hidden></p>
+        <div class="chips" id="chips"></div>
+        <form class="row" id="addName"><input type="text" id="name" placeholder="Add a name, like Afrid" aria-label="Add a name"><button class="btn">Add</button></form>
+        <h3 style="margin:22px 0 2px;font:700 15px var(--display)">Corrections</h3>
+        <p class="hint">When I hear the first word, I write the second.</p>
+        <ul class="fixes" id="fixes"></ul>
+        <form class="row" id="addFix"><input type="text" id="heard" placeholder="I hear" aria-label="Word I hear"><input type="text" id="write" placeholder="Write" aria-label="Word to write"><button class="btn">Add</button></form>
+      </div>
+    </details>
+
+    <details class="panel">
+      <summary><div><b>Cleanup model</b><small id="modelSum">OpenRouter</small></div></summary>
+      <div class="panel-body">
+        <p class="hint">Your words are tidied by an OpenRouter model. Without a key I paste exactly what I heard.</p>
+        <form id="settings">
+          <div class="field"><label for="model">Model</label><input type="text" id="model" list="models"></div>
+          <datalist id="models"></datalist>
+          <p class="hint" id="modelInfo" style="margin:-8px 0 10px;font-size:13px">Type to search every OpenRouter model.</p>
+          <div class="picks" id="picks"></div>
+          <div class="field"><label for="key">OpenRouter key</label><input type="password" id="key" autocomplete="off">
+            <p class="keystate" id="keyState" role="status"></p></div>
+          <button class="btn">Save settings</button><span class="saved" id="savedMsg" hidden>Saved</span>
+        </form>
+      </div>
+    </details>
+
+    <details class="panel">
+      <summary><div><b>Storage</b><small id="storeSum">Everything stays on this Mac</small></div></summary>
+      <div class="panel-body">
+        <dl class="usage">
+          <div><dt>Dictation history</dt><dd id="useHist">–</dd></div>
+          <div><dt>Speech model</dt><dd id="useModel">–</dd></div>
+        </dl>
+        <div class="field"><label for="keep">Delete dictations automatically</label>
+          <select id="keep"><option value="7">After 7 days</option><option value="30">After 1 month</option><option value="0">Never</option></select></div>
+        <button class="btn danger" id="clearAll" type="button">Clear all dictations</button>
+      </div>
+    </details>
+    <div class="panel about">
+      <p><b>LocalFlow is open source.</b> Ideas, fixes and new platforms are welcome.</p>
+      <div class="about-links">
+        <button type="button" data-open="contribute">Want to contribute? <small>How to help →</small></button>
+        <button type="button" data-open="issue">Found a bug or have an idea? <small>Raise an issue →</small></button>
+        <button type="button" data-open="repo">Star the project <small>GitHub →</small></button>
+      </div>
+      <p class="credit">Developed by <button type="button" data-open="github">Ahmed Afrid</button></p>
+    </div>
+  </div>
+</aside>
+
+<script>
+const T = new URLSearchParams(location.search).get("t");
+const $ = id => document.getElementById(id);
+const api = (path, body) => fetch(path, body === undefined ? {headers:{"X-Token":T}} :
+  {method:"POST", headers:{"X-Token":T,"Content-Type":"application/json"}, body:JSON.stringify(body)}).then(r => r.json());
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+let S = null, lastHist = "", dict = {words:[], replace:{}};
+
+const STATES = {
+  ready:["Ready","Hold Fn to talk, tap Fn to lock"], recording:["Listening","Let go of Fn to finish"],
+  locked:["Listening, hands-free","Tap Fn to finish"], working:["Writing it out","Pasting in a moment"],
+  setup:["Needs permissions","Finish the setup below"]};
+const hk = () => S ? S.hotkey : "Fn";  // Fn on macOS, Right Ctrl on Windows/Linux
+const PERMS = [["mic","Microphone","So I can hear you while you hold Fn."],
+  ["accessibility","Accessibility","So I can paste into any app and notice name fixes."],
+  ["input","Input Monitoring","So I can tell when you press Fn."]];
+
+function render(){
+  const u = S.update || {};
+  $("updGate").hidden = !u.required;
+  $("updBanner").hidden = u.required || !u.available;
+  const notes = u.notes ? ` ${u.notes}` : "";
+  $("updText").textContent = `LocalFlow ${u.latest} is available (you have ${S.version}).${notes}`;
+  $("updGateText").textContent = `You have ${S.version}. Version ${u.latest} is required to keep dictating.${notes} It takes a few seconds.`;
+
+  const st = S.keyboardLive ? S.status : "setup";
+  $("state").dataset.s = st;
+  [$("stateTitle").textContent, $("stateHint").textContent] = STATES[st].map(t => t.replaceAll("Fn", hk()));
+
+  // welcome walkthrough: macOS permissions (if any missing) + the OpenRouter key (optional, recommended)
+  const permsMissing = S.mac && (PERMS.some(([k]) => !S.perms[k]) || !S.keyboardLive);
+  const keyOk = S.keyStatus === "ok" || S.keyStatus === "offline";
+  let skipped = false; try { skipped = localStorage.getItem("lf-skip-key") === "1"; } catch {}
+  $("setup").hidden = !permsMissing && (keyOk || skipped);
+  $("restartRow").hidden = !permsMissing;
+  $("welcomeKey").textContent = hk();
+  if (!$("setup").hidden){
+    const steps = S.mac ? PERMS.map(([k,name,why]) => `<li class="${S.perms[k]?"done":""}"><div><b>${name}</b><small>${why}</small></div>${
+      S.perms[k] ? "<span style='color:var(--ok);font-weight:600'>On</span>" : `<button class="btn quiet" data-perm="${k}">Allow</button>`}</li>`) : [];
+    steps.push(`<li class="${keyOk?"done":""}"><div><b>Add an OpenRouter key <small style="display:inline">(recommended)</small></b><small>${
+      S.keyStatus === "invalid" ? "OpenRouter rejected the saved key. Paste a new one." :
+      "For much better results: I remove filler words, fix grammar and turn lists and requests into clean text. Cheap models cost well under a cent per dictation. Without a key I paste exactly what I heard."}</small></div>${
+      keyOk ? "<span style='color:var(--ok);font-weight:600'>Done</span>" :
+      `<div class="acts"><button class="linkbtn" data-open="openrouter">Get a key</button><button class="btn quiet" id="addKey">Add key</button>${
+        permsMissing ? "" : `<button class="linkbtn" id="skipKey">Skip for now</button>`}</div>`}</li>`);
+    const html = steps.join("");
+    if ($("perms").dataset.h !== html){ $("perms").dataset.h = html; $("perms").innerHTML = html; }
+  }
+
+  const histKey = JSON.stringify(S.history.slice(0,1)) + S.history.length + $("q").value;
+  if (histKey !== lastHist){ lastHist = histKey; renderHistory(); }
+
+  if (JSON.stringify(dict) !== JSON.stringify(S.dict)){ dict = S.dict; renderDict(); }
+  $("namesSum").textContent = dict.words.length ? `${dict.words.length} ${dict.words.length === 1 ? "name" : "names"}: ${dict.words.slice(0,3).join(", ")}${dict.words.length > 3 ? "…" : ""}` : "Spelled exactly, every time";
+  $("modeSum").textContent = S.mode === "everyday" ? "Everyday" : "Developer";
+  $("modelSum").textContent = S.keyStatus === "ok" ? S.model.split("/").pop() : S.keyStatus === "invalid" ? "Key rejected" : S.keyStatus === "missing" ? "No key, pasting raw" : S.model.split("/").pop();
+  $("learned").hidden = !S.learned; $("learned").textContent = S.learned ? `Just learned: ${S.learned}` : "";
+}
+
+function renderHistory(){
+  const q = $("q").value.toLowerCase();
+  const items = S.history.filter(h => !q || (h.final + " " + h.raw).toLowerCase().includes(q));
+  if (!items.length){ $("entries").innerHTML = `<p class="empty">${q ? "Nothing matches that search." : `Hold ${hk()} anywhere you can type and start talking. What you say shows up here.`}</p>`; return; }
+  let day = "", html = "";
+  for (const h of items){
+    const d = new Date(h.time), label = d.toDateString() === new Date().toDateString() ? "Today" : d.toLocaleDateString(undefined,{weekday:"long", month:"short", day:"numeric"});
+    if (label !== day){ day = label; html += `<div class="day">${label}</div>`; }
+    html += `<div class="entry"><time>${d.toLocaleTimeString([], {hour:"numeric", minute:"2-digit"})}</time><div><p class="${expanded.has(h.time) ? "" : "clamp"}" data-t="${esc(h.time)}">${esc(h.final)}</p><button class="more" data-more="${esc(h.time)}" hidden>${expanded.has(h.time) ? "Show less" : "Show more"}</button>${
+      h.raw !== h.final ? `<details><summary>What I heard</summary>${esc(h.raw)}</details>` : ""}</div><button class="copy" data-copy="${esc(h.final)}">Copy</button></div>`;
+  }
+  $("entries").innerHTML = html;
+  // "Show more" only where the text is actually cut off
+  document.querySelectorAll(".entry p[data-t]").forEach(p => {
+    p.nextElementSibling.hidden = !(expanded.has(p.dataset.t) || p.scrollHeight > p.clientHeight + 2); });
+}
+const expanded = new Set();
+document.addEventListener("click", e => { const t = e.target.dataset.more; if (!t) return;
+  expanded.has(t) ? expanded.delete(t) : expanded.add(t);
+  const p = e.target.previousElementSibling; p.classList.toggle("clamp", !expanded.has(t));
+  e.target.textContent = expanded.has(t) ? "Show less" : "Show more"; });
+
+// settings drawer
+const openSettings = on => { document.body.classList.toggle("open", on); if (on) $("closeSettings").focus(); else $("openSettings").focus(); };
+$("openSettings").onclick = () => openSettings(true);
+$("closeSettings").onclick = $("scrim").onclick = () => openSettings(false);
+document.addEventListener("keydown", e => { if (e.key === "Escape" && document.body.classList.contains("open")) openSettings(false); });
+
+function renderDict(){
+  $("chips").innerHTML = dict.words.length ? dict.words.map(w => `<span class="chip">${esc(w)}<button aria-label="Remove ${esc(w)}" data-word="${esc(w)}">×</button></span>`).join("")
+    : `<span class="hint" style="margin:0">No names yet.</span>`;
+  const fixes = Object.entries(dict.replace);
+  $("fixes").innerHTML = fixes.map(([a,b]) => `<li><s>${esc(a)}</s> becomes <b>${esc(b)}</b><button aria-label="Remove correction" data-fix="${esc(a)}">Remove</button></li>`).join("");
+}
+
+const saveDict = () => api("/api/dict", dict).then(tick);
+document.addEventListener("click", e => {
+  const t = e.target;
+  if (t.dataset.copy !== undefined){ api("/api/copy", {text:t.dataset.copy}); t.textContent = "Copied"; setTimeout(() => t.textContent = "Copy", 1200); }
+  if (t.dataset.word){ dict.words = dict.words.filter(w => w !== t.dataset.word); saveDict(); }
+  if (t.dataset.fix){ delete dict.replace[t.dataset.fix]; saveDict(); }
+  if (t.dataset.perm){ t.disabled = true; t.textContent = "Opening settings"; api("/api/permission", {which:t.dataset.perm}); }
+});
+$("addName").onsubmit = e => { e.preventDefault(); const v = $("name").value.trim(); if (v){ dict.words.push(v); $("name").value = ""; saveDict(); } };
+$("addFix").onsubmit = e => { e.preventDefault(); const a = $("heard").value.trim(), b = $("write").value.trim();
+  if (a && b){ dict.replace[a] = b; dict.words.push(b); $("heard").value = $("write").value = ""; saveDict(); } };
+$("settings").onsubmit = e => { e.preventDefault();
+  api("/api/settings", {model:$("model").value, key:$("key").value}).then(() => { $("key").value = ""; $("savedMsg").hidden = false; setTimeout(() => $("savedMsg").hidden = true, 2000); tick(); }); };
+$("restart").onclick = () => { $("restart").disabled = true; $("restart").textContent = "Restarting"; api("/api/restart", {}); };
+$("q").oninput = () => S && renderHistory();
+
+// quick picks: fast, cheap models that clean text well
+const PICKS = [["google/gemini-3.5-flash-lite","Gemini 3.5 Flash Lite"],["google/gemini-2.5-flash-lite","Gemini 2.5 Flash Lite"],
+  ["google/gemini-2.5-flash","Gemini 2.5 Flash"],["openai/gpt-oss-120b","GPT-OSS 120B"]];
+let MODELS = {};
+function showPicks(){
+  const cur = $("model").value.trim();
+  $("picks").innerHTML = PICKS.map(([id,n]) => `<button type="button" data-pick="${id}" aria-pressed="${id===cur}">${n}</button>`).join("");
+  const m = MODELS[cur];
+  $("modelInfo").textContent = m ? `${m.name}: $${m.price} per million input tokens.`
+    : Object.keys(MODELS).length ? "That isn't an OpenRouter model id. Pick one from the list." : "Type to search every OpenRouter model.";
+}
+api("/api/models").then(list => { if (!Array.isArray(list)) return;
+  list.forEach(m => MODELS[m.id] = m);
+  $("models").innerHTML = list.map(m => `<option value="${esc(m.id)}">${esc(m.name)}, $${m.price}/M</option>`).join(""); showPicks(); }).catch(() => {});
+$("model").oninput = showPicks;
+document.addEventListener("click", e => { if (e.target.dataset.pick){ $("model").value = e.target.dataset.pick; showPicks(); } });
+
+const size = b => b < 1024 ? `${b} B` : b < 1048576 ? `${(b/1024).toFixed(1)} KB` : b < 1073741824 ? `${(b/1048576).toFixed(0)} MB` : `${(b/1073741824).toFixed(2)} GB`;
+document.addEventListener("click", e => { const m = e.target.dataset.mode; if (m) api("/api/mode", {mode:m}).then(tick); });
+document.addEventListener("click", e => { const c = e.target.dataset.stop; if (c !== undefined) api("/api/stop", {cancel:c === "1"}).then(tick); });
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-update]"); if (!b) return;
+  document.querySelectorAll("[data-update]").forEach(x => { x.disabled = true; x.textContent = "Updating…"; });
+  api("/api/update", {}).then(r => { if (r.error) throw new Error(r.error);
+    document.querySelectorAll("[data-update]").forEach(x => x.textContent = "Restarting…"); })
+  .catch(err => { $("updErr").hidden = false; $("updErr").textContent = `${err.message}. Check your internet and try again.`;
+    document.querySelectorAll("[data-update]").forEach(x => { x.disabled = false; x.textContent = "Try again"; }); });
+});
+document.addEventListener("click", e => {
+  const o = e.target.closest("[data-open]"); if (o) api("/api/open", {to:o.dataset.open});
+  if (e.target.id === "addKey"){ openSettings(true); const d = $("key").closest("details"); d.open = true;
+    setTimeout(() => { d.scrollIntoView({block:"start"}); $("key").focus(); }, 260); }
+  if (e.target.id === "skipKey"){ try { localStorage.setItem("lf-skip-key", "1"); } catch {} render(); }
+});
+$("keep").addEventListener("change", e => api("/api/history/keep", {days:+e.target.value}).then(tick));
+// two clicks to clear, so one stray click can't wipe your history
+let armTimer;
+$("clearAll").onclick = () => {
+  const b = $("clearAll");
+  if (!b.classList.contains("armed")){
+    b.classList.add("armed"); b.textContent = `Click again to delete ${S.storage.entries} dictations`;
+    armTimer = setTimeout(() => { b.classList.remove("armed"); b.textContent = "Clear all dictations"; }, 4000); return;
+  }
+  clearTimeout(armTimer); b.classList.remove("armed"); b.textContent = "Cleared";
+  api("/api/history/clear", {}).then(tick); setTimeout(() => b.textContent = "Clear all dictations", 1500);
+};
+
+let first = true;
+function tick(){
+  return api("/api/state").then(s => {
+    S = s;
+    if (first){ first = false; $("model").value = s.model; showPicks(); }
+    const u = s.storage;
+    $("useHist").textContent = `${size(u.history)}, ${u.entries} ${u.entries === 1 ? "dictation" : "dictations"}`;
+    $("useModel").textContent = size(u.model);
+    $("storeSum").textContent = `${u.entries} ${u.entries === 1 ? "dictation" : "dictations"}, ${{7:"kept 7 days",30:"kept 1 month",0:"kept forever"}[u.keepDays] ?? ""}`;
+    document.querySelectorAll("[data-mode]").forEach(b => b.setAttribute("aria-checked", b.dataset.mode === s.mode));
+    if (document.activeElement !== $("keep")) $("keep").value = String(u.keepDays);
+    $("key").placeholder = s.keyHint ? `Saved key ending in ${s.keyHint}. Paste a new one to replace it.` : "Paste your key, it starts with sk-or-";
+    const ks = $("keyState"); ks.dataset.s = s.keyStatus;
+    ks.innerHTML = {
+      ok: `Key saved and working (ends in ${s.keyHint}). Your words are being cleaned up.`,
+      invalid: `OpenRouter rejected the saved key (ends in ${s.keyHint}). Create a new one at openrouter.ai/keys and paste it here.`,
+      missing: "No key saved. I paste exactly what I heard until you add one.",
+      offline: `Key saved (ends in ${s.keyHint}). Couldn't reach OpenRouter to check it.`}[s.keyStatus];
+    $("restart").disabled = false; $("restart").textContent = "Restart LocalFlow";
+    render();
+  }).catch(() => { $("state").dataset.s = "setup"; $("stateTitle").textContent = "LocalFlow isn't running"; $("stateHint").textContent = "Open it from Applications, then reopen this page from the menu bar."; });
+}
+tick(); setInterval(tick, 1000);
+</script>
+</body>
+</html>
