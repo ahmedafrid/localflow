@@ -14,11 +14,17 @@ jobs:
   save:
     runs-on: ubuntu-latest
     steps:
+      - name: Check the token is set up
+        id: check
+        run: echo "ok=${{ secrets.TRAFFIC_TOKEN != '' }}" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@v4
+        if: steps.check.outputs.ok == 'true'
       - name: Switch to the stats branch
+        if: steps.check.outputs.ok == 'true'
         run: |
           git fetch origin traffic-stats:traffic-stats && git checkout traffic-stats || { git checkout --orphan traffic-stats && git rm -rfq .; }
       - name: Fetch and merge the last 14 days
+        if: steps.check.outputs.ok == 'true'
         env:
           TOKEN: ${{ secrets.TRAFFIC_TOKEN }}
           REPO: ${{ github.repository }}
@@ -39,6 +45,7 @@ jobs:
           print(f"{len(rows)} days saved, {total} clones in total")
           PY
       - name: Commit
+        if: steps.check.outputs.ok == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
