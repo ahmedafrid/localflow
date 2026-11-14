@@ -8,6 +8,8 @@
 #  "pynput; sys_platform != 'darwin'",
 #   "pystray; sys_platform != 'darwin'", "pillow; sys_platform != 'darwin'", "pyperclip; sys_platform != 'darwin'"]
 # ///
+# Copyright 2026 Ahmed Afrid. Licensed under the Apache License 2.0, see LICENSE and NOTICE.
+# https://github.com/ahmedafrid/localflow
 """LocalFlow - local Wispr-Flow-style dictation for macOS, Windows and Linux. Developed by Ahmed Afrid (github.com/ahmedafrid).
 
 Hold the hotkey -> talk, release -> cleaned text is pasted where your cursor is.
