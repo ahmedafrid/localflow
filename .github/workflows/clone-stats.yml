@@ -1,0 +1,47 @@
+# GitHub only keeps clone counts for 14 days. This saves them every day to the
+# `traffic-stats` branch (clones.csv), so you keep the full history.
+#
+# One-time setup: create a fine-grained token at github.com/settings/tokens with
+# access to this repo and "Administration: Read-only", then add it as a repository
+# secret named TRAFFIC_TOKEN (Settings -> Secrets and variables -> Actions).
+name: Save clone stats
+on:
+  schedule: [{cron: "17 3 * * *"}]  # daily
+  workflow_dispatch:                 # or run it by hand from the Actions tab
+permissions:
+  contents: write
+jobs:
+  save:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Switch to the stats branch
+        run: |
+          git fetch origin traffic-stats:traffic-stats && git checkout traffic-stats || { git checkout --orphan traffic-stats && git rm -rfq .; }
+      - name: Fetch and merge the last 14 days
+        env:
+          TOKEN: ${{ secrets.TRAFFIC_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          python3 - <<'PY'
+          import csv, json, os, urllib.request
+          req = urllib.request.Request(f"https://api.github.com/repos/{os.environ['REPO']}/traffic/clones",
+                                       headers={"Authorization": f"Bearer {os.environ['TOKEN']}",
+                                                "Accept": "application/vnd.github+json"})
+          days = json.load(urllib.request.urlopen(req))["clones"]
+          rows = {r["date"]: r for r in csv.DictReader(open("clones.csv"))} if os.path.exists("clones.csv") else {}
+          for d in days:  # newer numbers win (today's count grows during the day)
+              rows[d["timestamp"][:10]] = {"date": d["timestamp"][:10], "clones": d["count"], "unique": d["uniques"]}
+          with open("clones.csv", "w", newline="") as f:
+              w = csv.DictWriter(f, ["date", "clones", "unique"]); w.writeheader()
+              for k in sorted(rows): w.writerow(rows[k])
+          total = sum(int(r["clones"]) for r in rows.values())
+          print(f"{len(rows)} days saved, {total} clones in total")
+          PY
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add clones.csv
+          git diff --cached --quiet || git commit -qm "clone stats $(date -u +%F)"
+          git push -q origin traffic-stats
